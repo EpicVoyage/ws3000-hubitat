@@ -16,7 +16,7 @@
  */
 
 metadata {
-	definition (name: "Custom WS3000 Driver", namespace: "EpicVoyage", author: "EpicVoyage") { //, importUrl: "https://raw.githubusercontent.com/CobraVmax/Hubitat/master/Drivers/Weather/WeatherUndergroundCustom.groovy") {
+	definition (name: "Custom WS3000 Driver", namespace: "EpicVoyage", author: "EpicVoyage", importUrl: "https://raw.githubusercontent.com/EpicVoyage/ws3000-hubitat/master/ws3000.groovy") {
 		capability "Sensor"
 		capability "Temperature Measurement"
 		capability "Relative Humidity Measurement"
@@ -42,7 +42,7 @@ metadata {
 			input "pollLocation", "enum", required: true, title: "Sensor Number", defaultValue: "1", options: ["1", "2", "3", "4", "5", "6", "7", "8"]
 			input "unitFormat", "enum", required: true, title: "Unit Format", defaultValue: "Imperial", options: ["Imperial", "Metric"]
 			input "pollIntervalLimit", "number", title: "Poll Interval Limit:", required: true, defaultValue: 1
-			input "autoPoll", "bool", required: false, title: "Enable Auto Poll"
+			input "autoPoll", "bool", required: false, title: "Enable Auto Poll", defaultValue: true
 			input "pollInterval", "enum", title: "Auto Poll Interval:", required: false, defaultValue: "5 Minutes", options: ["1 Minute", "5 Minutes", "10 Minutes", "15 Minutes", "30 Minutes", "1 Hour", "3 Hours"]
 			input "logSet", "bool", title: "Log All WS3000 Response Data", required: true, defaultValue: false
 			input "cutOff", "time", title: "New Day Starts", required: true, defaultValue: "00:00"
@@ -135,12 +135,10 @@ def poll1() {
 
 			sendEvent(name: "pollsSinceReset", value: state.NumOfPolls)
 			sendEvent(name: "stationID", value: pollLocation)
-			//sendEvent(name: "stationType", value: resp.data.softwareType[0], isStateChange: true)
 
-			sendEvent(name: "humidity", value: resp.data.humidity, isStateChange: true)
-			//sendEvent(name: "observation_time", value: resp.data.obsTimeLocal[0], isStateChange: true)
+			sendEvent(name: "humidity", value: resp.data.humidity)
 
-			if(unitFormat == "Imperial") {
+            if(unitFormat == "Imperial") {
 				sendEvent(name: "temperature", value: resp.data.temperatureF, unit: "F")
 				sendEvent(name: "feelsLike", value: resp.data.heatIndexF, unit: "F")
 				sendEvent(name: "dewpoint", value: resp.data.dewPointF, unit: "F")
@@ -152,18 +150,15 @@ def poll1() {
 			}
 
 			state.lastPoll = now()
+
+            // Time manipulation is the most likely to fail. Do it last.
+            long lastUpdateUTC = new BigDecimal(resp.data.lastUpdateUTC) * 1000
+            sendEvent(name: "observation_time", value: new Date(lastUpdateUTC).timeString)
 		}
 	} catch (e) {
 		log.error "something went wrong in Poll1: $e"
 	}
 }
-
-def Report(){
-  def obvTime = Observation_Time.value
-
-  log.info "$obvTime"
-}
-
 
 def version(){
 	updateCheck()
@@ -175,7 +170,7 @@ def updateCheck(){
 }
 
 def setVersion(){
-	state.version = "1.0.1"
+	state.version = "1.0.2"
 	state.InternalName = "WS3000Driver"
 	sendEvent(name: "DriverAuthor", value: "EpicVoyage")
 	sendEvent(name: "DriverVersion", value: state.version)
